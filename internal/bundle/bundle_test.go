@@ -441,9 +441,9 @@ func TestVerifyBrokenManifestSignature(t *testing.T) {
 }
 
 func TestVerifyLargeBundle(t *testing.T) {
-	// Performance test: 10,000 receipts must verify in under 10 seconds.
-	// This is a realistic upper bound for bundle sizes that auditors handle.
+	// Product target: 10k receipts in <10s without -race; see perf_limit_*.go for CI (-race).
 	const n = 10_000
+
 	k := newTestKey(t)
 	start := time.Now()
 
@@ -460,10 +460,10 @@ func TestVerifyLargeBundle(t *testing.T) {
 	res := bundle.VerifyBundle(b, k.PublicKeyWithID())
 
 	elapsed := time.Since(start)
-	t.Logf("10k bundle: parse+verify in %v", elapsed)
+	t.Logf("10k bundle: parse+verify in %v (limit %v)", elapsed, bundlePerfLimit)
 
-	if elapsed > 10*time.Second {
-		t.Errorf("performance: 10k bundle took %v, want < 10s", elapsed)
+	if elapsed > bundlePerfLimit {
+		t.Errorf("performance: 10k bundle took %v, want < %v", elapsed, bundlePerfLimit)
 	}
 	if !res.AllPassed() {
 		t.Errorf("AllPassed: want true, PerReceipt.Failed=%d", res.PerReceipt.Failed)
