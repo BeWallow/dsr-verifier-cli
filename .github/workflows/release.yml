@@ -202,10 +202,14 @@ jobs:
             dist/*
 
       - name: Dispatch Homebrew tap update
-        if: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
         env:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
+          if [ -z "${HOMEBREW_TAP_TOKEN}" ]; then
+            echo "Skipping Homebrew tap update (HOMEBREW_TAP_TOKEN not configured)."
+            exit 0
+          fi
+
           VERSION="${GITHUB_REF_NAME}"
           SHA256_DARWIN_AMD64=$(grep "darwin-amd64.tar.gz" dist/SHA256SUMS | awk '{print $1}')
           SHA256_DARWIN_ARM64=$(grep "darwin-arm64.tar.gz" dist/SHA256SUMS | awk '{print $1}')
