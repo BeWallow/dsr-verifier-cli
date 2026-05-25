@@ -1,0 +1,57 @@
+# Reference workflow for github.com/deja-dev/homebrew-tap
+#
+# Copy this file to:
+#   .github/workflows/update-formula.yml
+# in the deja-dev/homebrew-tap repository.
+#
+# This workflow listens for the "new-release" repository_dispatch event
+# sent by the dsr-verifier-cli release pipeline and updates the formula
+# with the new version and SHA-256 checksums.
+
+name: Update dsr-verifier-cli formula
+
+on:
+  repository_dispatch:
+    types: [new-release]
+
+jobs:
+  update:
+    name: Update formula to ${{ github.event.client_payload.version }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update formula
+        env:
+          VERSION: ${{ github.event.client_payload.version }}
+          SHA256_DARWIN_AMD64: ${{ github.event.client_payload.sha256_darwin_amd64 }}
+          SHA256_DARWIN_ARM64: ${{ github.event.client_payload.sha256_darwin_arm64 }}
+          SHA256_LINUX_AMD64: ${{ github.event.client_payload.sha256_linux_amd64 }}
+          SHA256_LINUX_ARM64: ${{ github.event.client_payload.sha256_linux_arm64 }}
+        run: |
+          # Strip leading 'v' from version for the formula's version field.
+          SEMVER="${VERSION#v}"
+
+          sed -i \
+            -e "s|version \"[0-9.]*\"|version \"${SEMVER}\"|" \
+            -e "s|REPLACE_WITH_SHA256_DARWIN_AMD64|${SHA256_DARWIN_AMD64}|" \
+            -e "s|REPLACE_WITH_SHA256_DARWIN_ARM64|${SHA256_DARWIN_ARM64}|" \
+            -e "s|REPLACE_WITH_SHA256_LINUX_AMD64|${SHA256_LINUX_AMD64}|" \
+            -e "s|REPLACE_WITH_SHA256_LINUX_ARM64|${SHA256_LINUX_ARM64}|" \
+            Formula/dsr-verifier-cli.rb
+
+          # Also update any existing SHA256 lines (second or subsequent releases).
+          # The pattern matches 64-char hex strings that are not the new values.
+          echo "Formula updated:"
+          grep -E "version|sha256" Formula/dsr-verifier-cli.rb
+
+      - name: Commit and push
+        run: |
+          VERSION="${{ github.event.client_payload.version }}"
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/dsr-verifier-cli.rb
+          git commit -m "chore: bump dsr-verifier-cli to ${VERSION}"
+          git push

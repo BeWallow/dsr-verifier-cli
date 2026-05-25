@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>dsr-verifier-cli — Download</title>
+  <!--
+    This page is served at verify.deja.dev/download.
+    It intentionally uses no JavaScript and minimal CSS so it works in
+    compliance-restricted environments that block scripts or dynamic content.
+
+    To update for a new release:
+      1. Replace CURRENT_VERSION with the new tag (e.g. v1.0.1)
+      2. Update the SHA-256 values from the release's SHA256SUMS file
+      3. The CI pipeline does this automatically via download/update.sh
+
+    Last updated for version: v1.0.0
+  -->
+  <style>
+    body { font-family: monospace; max-width: 860px; margin: 40px auto; padding: 0 20px; color: #1a1a1a; line-height: 1.6; }
+    h1 { font-size: 1.4em; border-bottom: 2px solid #1a1a1a; padding-bottom: 8px; }
+    h2 { font-size: 1.1em; margin-top: 2em; }
+    table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+    th, td { border: 1px solid #ccc; padding: 8px 12px; text-align: left; font-size: 0.9em; }
+    th { background: #f5f5f5; }
+    .hash { font-size: 0.8em; word-break: break-all; color: #444; }
+    pre { background: #f5f5f5; padding: 12px; overflow-x: auto; font-size: 0.85em; }
+    code { background: #f0f0f0; padding: 1px 4px; }
+    .note { background: #fffbe6; border-left: 4px solid #e6a817; padding: 10px 14px; margin: 1em 0; }
+    a { color: #0066cc; }
+    .version-badge { font-size: 1.2em; font-weight: bold; }
+  </style>
+</head>
+<body>
+
+<h1>dsr-verifier-cli — Download</h1>
+
+<p>
+  Offline DSR/1.0.1 receipt and evidence bundle verifier.<br>
+  Open-source · MIT License · Zero network calls · Reproducible builds
+</p>
+
+<p class="version-badge">Current version: <strong>v1.0.0</strong></p>
+
+<div class="note">
+  <strong>Before running any binary:</strong> verify the SHA-256 checksum below matches the
+  file you downloaded, and verify the GPG signature on the checksum file.
+  Instructions are in the <a href="#verify">verification section</a>.
+</div>
+
+<!-- ─────────────────────────────────────────────────── Downloads ── -->
+<h2>Downloads</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Platform</th>
+      <th>Architecture</th>
+      <th>File</th>
+      <th>SHA-256</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>macOS</td>
+      <td>Apple Silicon (M1/M2/M3)</td>
+      <td><a href="https://github.com/deja-dev/dsr-verifier-cli/releases/download/v1.0.0/dsr-verifier-cli-v1.0.0-darwin-arm64.tar.gz">dsr-verifier-cli-v1.0.0-darwin-arm64.tar.gz</a></td>
+      <td class="hash">REPLACE_SHA256_DARWIN_ARM64</td>
+    </tr>
+    <tr>
+      <td>macOS</td>
+      <td>Intel (x86-64)</td>
+      <td><a href="https://github.com/deja-dev/dsr-verifier-cli/releases/download/v1.0.0/dsr-verifier-cli-v1.0.0-darwin-amd64.tar.gz">dsr-verifier-cli-v1.0.0-darwin-amd64.tar.gz</a></td>
+      <td class="hash">REPLACE_SHA256_DARWIN_AMD64</td>
+    </tr>
+    <tr>
+      <td>Linux</td>
+      <td>x86-64</td>
+      <td><a href="https://github.com/deja-dev/dsr-verifier-cli/releases/download/v1.0.0/dsr-verifier-cli-v1.0.0-linux-amd64.tar.gz">dsr-verifier-cli-v1.0.0-linux-amd64.tar.gz</a></td>
+      <td class="hash">REPLACE_SHA256_LINUX_AMD64</td>
+    </tr>
+    <tr>
+      <td>Linux</td>
+      <td>ARM64</td>
+      <td><a href="https://github.com/deja-dev/dsr-verifier-cli/releases/download/v1.0.0/dsr-verifier-cli-v1.0.0-linux-arm64.tar.gz">dsr-verifier-cli-v1.0.0-linux-arm64.tar.gz</a></td>
+      <td class="hash">REPLACE_SHA256_LINUX_ARM64</td>
+    </tr>
+    <tr>
+      <td>Windows</td>
+      <td>x86-64</td>
+      <td><a href="https://github.com/deja-dev/dsr-verifier-cli/releases/download/v1.0.0/dsr-verifier-cli-v1.0.0-windows-amd64.zip">dsr-verifier-cli-v1.0.0-windows-amd64.zip</a></td>
+      <td class="hash">REPLACE_SHA256_WINDOWS_AMD64</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>
+  <a href="https://github.com/deja-dev/dsr-verifier-cli/releases/download/v1.0.0/SHA256SUMS">SHA256SUMS</a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/deja-dev/dsr-verifier-cli/releases/download/v1.0.0/SHA256SUMS.asc">SHA256SUMS.asc (GPG signature)</a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/deja-dev/dsr-verifier-cli/releases">All releases</a>
+</p>
+
+<!-- ──────────────────────────────────────────── Install via Homebrew ── -->
+<h2>Install via Homebrew (macOS / Linux)</h2>
+
+<pre>brew install deja-dev/tap/dsr-verifier-cli</pre>
+
+<p>To add the tap manually first:</p>
+<pre>brew tap deja-dev/tap
+brew install dsr-verifier-cli</pre>
+
+<!-- ──────────────────────────────────────────────── Verify section ── -->
+<h2 id="verify">Verify your download</h2>
+
+<p>Always verify the checksum before running the binary.</p>
+
+<h3>Step 1 — Download the checksum file and its GPG signature</h3>
+
+<pre>curl -LO https://github.com/deja-dev/dsr-verifier-cli/releases/download/v1.0.0/SHA256SUMS
+curl -LO https://github.com/deja-dev/dsr-verifier-cli/releases/download/v1.0.0/SHA256SUMS.asc</pre>
+
+<h3>Step 2 — Import the Déjà release public key (one-time setup)</h3>
+
+<pre>gpg --keyserver keys.openpgp.org --recv-keys REPLACE_RELEASE_KEY_FINGERPRINT</pre>
+
+<p>Or download directly:</p>
+
+<pre>curl -L https://deja.dev/release-key.asc | gpg --import</pre>
+
+<h3>Step 3 — Verify the GPG signature on SHA256SUMS</h3>
+
+<pre>gpg --verify SHA256SUMS.asc SHA256SUMS</pre>
+
+<p>You should see: <code>Good signature from "Déjà Release Key &lt;releases@deja.dev&gt;"</code></p>
+
+<h3>Step 4 — Verify the binary checksum</h3>
+
+<p>macOS / Linux:</p>
+<pre>sha256sum --check --ignore-missing SHA256SUMS</pre>
+
+<p>macOS (if <code>sha256sum</code> is not installed):</p>
+<pre>shasum -a 256 --check --ignore-missing SHA256SUMS</pre>
+
+<h3>Step 5 — Extract and run</h3>
+
+<pre># macOS / Linux
+tar -xzf dsr-verifier-cli-v1.0.0-darwin-arm64.tar.gz
+./dsr-verifier-cli --version
+
+# Windows (PowerShell)
+Expand-Archive dsr-verifier-cli-v1.0.0-windows-amd64.zip .
+.\dsr-verifier-cli.exe --version</pre>
+
+<!-- ──────────────────────────────────────── Reproducible builds ── -->
+<h2>Reproducible builds</h2>
+
+<p>
+  The source code is open (<a href="https://github.com/deja-dev/dsr-verifier-cli">github.com/deja-dev/dsr-verifier-cli</a>).
+  Any auditor can rebuild the binary from source and verify it matches
+  the SHA-256 above:
+</p>
+
+<pre>git clone https://github.com/deja-dev/dsr-verifier-cli.git
+cd dsr-verifier-cli
+git checkout v1.0.0
+
+COMMIT=$(git rev-parse --short HEAD)
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+go build \
+  -trimpath \
+  -buildvcs=false \
+  -ldflags="-s -w -X github.com/deja-dev/dsr-verifier-cli/internal/cli.BuildCommit=${COMMIT}" \
+  -o dsr-verifier-cli \
+  ./cmd/dsr-verifier-cli
+
+sha256sum dsr-verifier-cli
+# Compare to the linux-amd64 line in SHA256SUMS above</pre>
+
+<p>
+  Full instructions and Docker-based build: <a href="https://github.com/deja-dev/dsr-verifier-cli/blob/main/BUILD.md">BUILD.md</a>
+</p>
+
+<!-- ──────────────────────────────────────────────── System requirements ── -->
+<h2>System requirements</h2>
+
+<table>
+  <tr><th>Requirement</th><th>Value</th></tr>
+  <tr><td>macOS</td><td>10.15 (Catalina) or later</td></tr>
+  <tr><td>Linux</td><td>Any distribution with glibc 2.17+ (2013 or later)</td></tr>
+  <tr><td>Windows</td><td>Windows 10 or Windows Server 2016 or later</td></tr>
+  <tr><td>Runtime dependencies</td><td><strong>None.</strong> Fully static binary.</td></tr>
+  <tr><td>Network access</td><td><strong>None required.</strong> The verifier makes zero network calls.</td></tr>
+  <tr><td>Disk space</td><td>~6 MB</td></tr>
+</table>
+
+<!-- ──────────────────────────────────────────────────── Footer ── -->
+<hr>
+<p style="font-size:0.85em; color:#666;">
+  dsr-verifier-cli is open-source (MIT License) ·
+  <a href="https://github.com/deja-dev/dsr-verifier-cli">Source code</a> ·
+  <a href="https://github.com/deja-dev/dsr-verifier-cli/issues">Report a bug</a> ·
+  <a href="https://deja.dev">deja.dev</a>
+</p>
+
+</body>
+</html>

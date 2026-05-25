@@ -1,0 +1,227 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+# Write permission is needed to create the GitHub Release and upload assets.
+permissions:
+  contents: write
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────
+  # 1. Run the full test suite against the exact pinned toolchain.
+  #    The release aborts here if any test fails.
+  # ─────────────────────────────────────────────────────────────────────────
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.3'
+          cache: true
+
+      - run: go mod verify
+      - run: go test -race -count=1 -timeout=120s ./...
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 2. Cross-compile for all five targets. Each job runs independently and
+  #    produces one archive (tar.gz for POSIX, zip for Windows).
+  #
+  #    Reproducibility requirements:
+  #      • Go 1.22.3 (exact pin — never "latest" or a range)
+  #      • CGO_ENABLED=0  → pure Go, fully static binary
+  #      • -trimpath       → strips local build paths from the binary
+  #      • -buildvcs=false → no VCS metadata embedded (would differ per machine)
+  #      • -s -w           → strip debug info; reduces size, not correctness
+  #      • Commit hash injected deterministically from the tag being built
+  #
+  #    Any two builders on the same tag with the same Go toolchain will
+  #    produce byte-for-byte identical archives.
+  # ─────────────────────────────────────────────────────────────────────────
+  build:
+    name: Build (${{ matrix.goos }}/${{ matrix.goarch }})
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+    env:
+      CGO_ENABLED: '0'
+      GOOS: ${{ matrix.goos }}
+      GOARCH: ${{ matrix.goarch }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.3'
+          cache: true
+
+      - name: Build binary
+        run: |
+          EXT=""
+          [ "$GOOS" = "windows" ] && EXT=".exe"
+          COMMIT=$(git rev-parse --short HEAD)
+
+          mkdir -p dist
+          go build \
+            -trimpath \
+            -buildvcs=false \
+            -ldflags="-s -w -X github.com/deja-dev/dsr-verifier-cli/internal/cli.BuildCommit=${COMMIT}" \
+            -o "dist/dsr-verifier-cli${EXT}" \
+            ./cmd/dsr-verifier-cli
+
+      - name: Package archive
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          cd dist
+          if [ "$GOOS" = "windows" ]; then
+            zip "dsr-verifier-cli-${VERSION}-${GOOS}-${GOARCH}.zip" "dsr-verifier-cli.exe"
+          else
+            chmod 755 dsr-verifier-cli
+            tar -czf "dsr-verifier-cli-${VERSION}-${GOOS}-${GOARCH}.tar.gz" "dsr-verifier-cli"
+          fi
+
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: archive-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+          if-no-files-found: error
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 3. Collect all archives, generate SHA-256 checksums, sign them with GPG,
+  #    create the GitHub Release, and trigger the Homebrew tap update.
+  # ─────────────────────────────────────────────────────────────────────────
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all archives
+        uses: actions/download-artifact@v4
+        with:
+          pattern: archive-*
+          merge-multiple: true
+          path: dist/
+
+      - name: Generate SHA-256 checksums
+        working-directory: dist
+        run: |
+          sha256sum dsr-verifier-cli-* > SHA256SUMS
+          echo "=== SHA256SUMS ==="
+          cat SHA256SUMS
+
+      - name: Import GPG release key
+        env:
+          GPG_SIGNING_KEY: ${{ secrets.GPG_SIGNING_KEY }}
+        run: |
+          echo "$GPG_SIGNING_KEY" | gpg --batch --import
+          # Trust the imported key fully so signing succeeds without prompt.
+          KEY_FP=$(gpg --with-colons --import-options show-only \
+            --import <<< "$GPG_SIGNING_KEY" 2>/dev/null \
+            | awk -F: '/^fpr/{print $10; exit}')
+          echo "${KEY_FP}:6:" | gpg --import-ownertrust
+
+      - name: Sign checksums file
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        working-directory: dist
+        run: |
+          echo "$GPG_PASSPHRASE" | gpg \
+            --batch --yes \
+            --passphrase-fd 0 \
+            --pinentry-mode loopback \
+            --detach-sign --armor \
+            SHA256SUMS
+          echo "=== GPG signature ==="
+          cat SHA256SUMS.asc
+
+      - name: Write release notes
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          cat > release-notes.md << EOF
+          ## dsr-verifier-cli ${VERSION}
+
+          Offline DSR/1.0.1 receipt and evidence bundle verifier — zero network calls, open-source, reproducible builds.
+
+          ### Quick install
+
+          **macOS (Homebrew):**
+          \`\`\`
+          brew install deja-dev/tap/dsr-verifier-cli
+          \`\`\`
+
+          **Direct download:** grab the binary for your platform below, then verify the checksum:
+          \`\`\`
+          # Download the binary and the checksum file
+          curl -LO https://github.com/deja-dev/dsr-verifier-cli/releases/download/${VERSION}/dsr-verifier-cli-${VERSION}-linux-amd64.tar.gz
+          curl -LO https://github.com/deja-dev/dsr-verifier-cli/releases/download/${VERSION}/SHA256SUMS
+          curl -LO https://github.com/deja-dev/dsr-verifier-cli/releases/download/${VERSION}/SHA256SUMS.asc
+
+          # Verify the GPG signature on the checksum file
+          gpg --keyserver keys.openpgp.org --recv-keys <RELEASE_KEY_FINGERPRINT>
+          gpg --verify SHA256SUMS.asc SHA256SUMS
+
+          # Verify the binary matches its checksum
+          sha256sum --check --ignore-missing SHA256SUMS
+          \`\`\`
+
+          ### Reproducible builds
+
+          Any auditor can rebuild from source and confirm their binary matches the published SHA-256. See [BUILD.md](https://github.com/deja-dev/dsr-verifier-cli/blob/main/BUILD.md) for the full procedure.
+          EOF
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "dsr-verifier-cli ${GITHUB_REF_NAME}" \
+            --notes-file release-notes.md \
+            dist/*
+
+      - name: Dispatch Homebrew tap update
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          SHA256_DARWIN_AMD64=$(grep "darwin-amd64.tar.gz" dist/SHA256SUMS | awk '{print $1}')
+          SHA256_DARWIN_ARM64=$(grep "darwin-arm64.tar.gz" dist/SHA256SUMS | awk '{print $1}')
+          SHA256_LINUX_AMD64=$(grep  "linux-amd64.tar.gz"  dist/SHA256SUMS | awk '{print $1}')
+          SHA256_LINUX_ARM64=$(grep  "linux-arm64.tar.gz"  dist/SHA256SUMS | awk '{print $1}')
+
+          curl -sf -X POST \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Authorization: token ${HOMEBREW_TAP_TOKEN}" \
+            "https://api.github.com/repos/deja-dev/homebrew-tap/dispatches" \
+            -d "{
+              \"event_type\": \"new-release\",
+              \"client_payload\": {
+                \"version\": \"${VERSION}\",
+                \"sha256_darwin_amd64\": \"${SHA256_DARWIN_AMD64}\",
+                \"sha256_darwin_arm64\": \"${SHA256_DARWIN_ARM64}\",
+                \"sha256_linux_amd64\": \"${SHA256_LINUX_AMD64}\",
+                \"sha256_linux_arm64\": \"${SHA256_LINUX_ARM64}\"
+              }
+            }"
