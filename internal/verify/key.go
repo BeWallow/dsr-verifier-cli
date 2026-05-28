@@ -3,7 +3,9 @@ package verify
 import (
 	"bufio"
 	"bytes"
+	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -12,21 +14,25 @@ import (
 	dsrerrors "github.com/deja-dev/dsr-verifier-cli/internal/errors"
 )
 
-// PublicKeyWithID bundles an ed25519 public key with the key_id extracted
-// from the PEM comment header.
+// PublicKeyWithID bundles a parsed public key with the key_id extracted
+// from the PEM comment header. The Key field holds one of:
+//
+//   - ed25519.PublicKey
+//   - *rsa.PublicKey
+//   - *ecdsa.PublicKey
 type PublicKeyWithID struct {
-	Key   ed25519.PublicKey
+	Key   interface{}
 	KeyID string
 }
 
-// ParsePublicKeyFile parses an ed25519 public key from PEM-encoded bytes.
+// ParsePublicKeyFile parses a public key from PEM-encoded bytes.
 // The file may contain an optional header comment in the form:
 //
 //	# key_id: <id>
 //
 // placed before the PEM block. If the comment is absent, KeyID is empty.
 // The PEM block must use the PKIX SubjectPublicKeyInfo encoding
-// ("BEGIN PUBLIC KEY").
+// ("BEGIN PUBLIC KEY"). Supported key types: ed25519, RSA, ECDSA.
 func ParsePublicKeyFile(data []byte) (*PublicKeyWithID, *dsrerrors.VerificationError) {
 	keyID := extractKeyID(data)
 
@@ -45,7 +51,7 @@ func ParsePublicKeyFile(data []byte) (*PublicKeyWithID, *dsrerrors.VerificationE
 			dsrerrors.KeyParseError,
 			fmt.Sprintf(
 				"The public key file contains a %q PEM block but this verifier expects a %q block "+
-					"(PKIX SubjectPublicKeyInfo encoding for ed25519 keys).",
+					"(PKIX SubjectPublicKeyInfo encoding).",
 				block.Type, "PUBLIC KEY",
 			),
 			fmt.Sprintf("pem block type: %q, expected: %q", block.Type, "PUBLIC KEY"),
@@ -62,20 +68,24 @@ func ParsePublicKeyFile(data []byte) (*PublicKeyWithID, *dsrerrors.VerificationE
 		)
 	}
 
-	ed25519Key, ok := pub.(ed25519.PublicKey)
-	if !ok {
+	switch k := pub.(type) {
+	case ed25519.PublicKey:
+		return &PublicKeyWithID{Key: k, KeyID: keyID}, nil
+	case *rsa.PublicKey:
+		return &PublicKeyWithID{Key: k, KeyID: keyID}, nil
+	case *ecdsa.PublicKey:
+		return &PublicKeyWithID{Key: k, KeyID: keyID}, nil
+	default:
 		return nil, dsrerrors.New(
 			dsrerrors.KeyParseError,
 			fmt.Sprintf(
-				"The public key file contains a %T key but this verifier requires an ed25519 key. "+
-					"DSR/1.0.1 receipts are signed with ed25519.",
+				"The public key file contains a %T key but this verifier supports only "+
+					"ed25519, RSA, and ECDSA keys for DSR/1.0.1 receipts.",
 				pub,
 			),
-			fmt.Sprintf("key type: %T, expected: ed25519.PublicKey", pub),
+			fmt.Sprintf("key type: %T, supported: ed25519.PublicKey, *rsa.PublicKey, *ecdsa.PublicKey", pub),
 		)
 	}
-
-	return &PublicKeyWithID{Key: ed25519Key, KeyID: keyID}, nil
 }
 
 // extractKeyID scans the lines before the first PEM block for a comment of

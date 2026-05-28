@@ -38,14 +38,20 @@ var validTypes = map[string]bool{
 // ValidType reports whether t is a recognized DSR/1.0.1 receipt type.
 func ValidType(t string) bool { return validTypes[t] }
 
-// SigningAlgorithmED25519 is the only signing algorithm accepted by this verifier.
-const SigningAlgorithmED25519 = "ed25519"
+// Supported signing algorithms.
+const (
+	SigningAlgorithmED25519    = "ed25519"
+	SigningAlgorithmRSAPSS     = "rsa-pss-sha256"
+	SigningAlgorithmECDSA      = "ecdsa-sha256"
+)
 
 // Receipt is the parsed, validated representation of a DSR/1.0.1 receipt.
 //
-// The Signature field holds the raw 64-byte ed25519 signature decoded from
-// the hex string stored in the JSON. The Content field is the raw JSON bytes
-// of the receipt body, preserved verbatim for canonical hash computation.
+// The Signature field holds the raw signature bytes decoded from the hex
+// string stored in the JSON. For ed25519 this is 64 bytes; for RSA-PSS it
+// is the RSA key size in bytes; for ECDSA it is an ASN.1/DER-encoded value.
+// The Content field is the raw JSON bytes of the receipt body, preserved
+// verbatim for canonical hash computation.
 type Receipt struct {
 	ID               string          `json:"id"`
 	Version          string          `json:"version"`

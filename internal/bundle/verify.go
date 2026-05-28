@@ -146,7 +146,22 @@ func VerifyBundle(b *Bundle, provided *verify.PublicKeyWithID) *BundleVerifyResu
 		IssuerKeyID: b.Manifest.IssuerKeyID,
 	}
 
-	res.ManifestSig = VerifyManifestSignature(b.Manifest, provided.Key)
+	// Bundles are ed25519-only in v1; extract the ed25519 key for manifest verification.
+	ed25519Key, ok := provided.Key.(ed25519.PublicKey)
+	if !ok {
+		res.ManifestSig = ManifestSigResult{
+			Valid: false,
+			KeyID: b.Manifest.IssuerKeyID,
+			Err: dsrerrors.New(
+				dsrerrors.SignatureInvalid,
+				"Bundle manifests require an ed25519 public key. "+
+					"BYOK (RSA/ECDSA) keys are not supported for bundle manifest verification.",
+				fmt.Sprintf("key type: %T, expected: ed25519.PublicKey", provided.Key),
+			),
+		}
+	} else {
+		res.ManifestSig = VerifyManifestSignature(b.Manifest, ed25519Key)
+	}
 	res.SequenceInteg = VerifySequenceIntegrity(b.Manifest)
 	res.PerReceipt = VerifyPerReceipt(b.Receipts, provided)
 	res.CausalChain = VerifyCausalChain(b.Receipts)

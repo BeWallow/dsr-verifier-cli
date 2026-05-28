@@ -108,28 +108,20 @@ func validate(r *Receipt) *dsrerrors.VerificationError {
 		)
 	}
 
-	if r.SigningAlgorithm != SigningAlgorithmED25519 {
+	switch r.SigningAlgorithm {
+	case SigningAlgorithmED25519, SigningAlgorithmRSAPSS, SigningAlgorithmECDSA:
+		// accepted
+	default:
 		return dsrerrors.New(
-			dsrerrors.MalformedReceipt,
+			dsrerrors.UnsupportedAlgorithm,
 			fmt.Sprintf(
-				"The receipt claims signing algorithm %q but this verifier only supports ed25519. "+
+				"The receipt claims signing algorithm %q which is not supported by this verifier. "+
+					"Supported algorithms are: ed25519, rsa-pss-sha256, ecdsa-sha256. "+
 					"Contact Déjà support if you believe this receipt was produced by a current Déjà release.",
 				r.SigningAlgorithm,
 			),
-			fmt.Sprintf("signing_algorithm field: %q, expected: %q", r.SigningAlgorithm, SigningAlgorithmED25519),
-		)
-	}
-
-	// ed25519 signatures are exactly 64 bytes.
-	if len(r.Signature) != 64 {
-		return dsrerrors.New(
-			dsrerrors.MalformedReceipt,
-			fmt.Sprintf(
-				"The receipt's signature field is %d bytes but ed25519 signatures are exactly 64 bytes. "+
-					"The receipt file may be corrupt.",
-				len(r.Signature),
-			),
-			fmt.Sprintf("signature length: %d bytes, expected: 64 bytes", len(r.Signature)),
+			fmt.Sprintf("signing_algorithm field: %q, supported: [%s, %s, %s]",
+				r.SigningAlgorithm, SigningAlgorithmED25519, SigningAlgorithmRSAPSS, SigningAlgorithmECDSA),
 		)
 	}
 

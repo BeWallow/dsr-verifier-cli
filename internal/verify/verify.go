@@ -15,7 +15,10 @@
 package verify
 
 import (
+	"crypto"
+	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
@@ -89,25 +92,45 @@ type SignatureResult struct {
 	Err             *dsrerrors.VerificationError
 }
 
-// Signature verifies the ed25519 signature on r using the provided public key.
+// Signature verifies the signature on r using the provided public key.
 //
 // The signed payload is the canonical representation of the receipt's envelope
 // fields (id, version, type, vault_id, issued_at, content_hash, signing_key_id,
 // signing_algorithm) — see dsr.CanonicalSignedPayload for the exact construction.
 // This binds all identity fields and the content hash to the signature, so that
 // any modification to any of those fields is detected here.
+//
+// Dispatch by signing_algorithm:
+//   - "ed25519"       → ed25519.Verify over the raw canonical payload bytes
+//   - "rsa-pss-sha256" → rsa.VerifyPSS with SHA-256 digest, PSSSaltLengthAuto
+//   - "ecdsa-sha256"  → ecdsa.VerifyASN1 with SHA-256 digest (DER-encoded sig)
 func Signature(r *dsr.Receipt, provided *PublicKeyWithID) *SignatureResult {
-	pubKey := provided.Key
-
 	// Compute the public key's fingerprint for the output (not for security).
-	sum := sha256.Sum256(pubKey)
+	// Serialize the key deterministically for fingerprinting.
+	var keyBytes []byte
+	switch k := provided.Key.(type) {
+	case ed25519.PublicKey:
+		keyBytes = []byte(k)
+	case *rsa.PublicKey:
+		der, _ := x509MarshalPKIX(k)
+		keyBytes = der
+	case *ecdsa.PublicKey:
+		der, _ := x509MarshalPKIX(k)
+		keyBytes = der
+	}
+	sum := sha256.Sum256(keyBytes)
 	keyDigest := fmt.Sprintf("sha256:%s", hex.EncodeToString(sum[:])[:16])
 
 	sigHex := hex.EncodeToString(r.Signature)
-	sigDisplay := sigHex[:8] + "..." + sigHex[len(sigHex)-8:]
+	var sigDisplay string
+	if len(sigHex) >= 16 {
+		sigDisplay = sigHex[:8] + "..." + sigHex[len(sigHex)-8:]
+	} else {
+		sigDisplay = sigHex
+	}
 
 	res := &SignatureResult{
-		Algorithm:       dsr.SigningAlgorithmED25519,
+		Algorithm:       r.SigningAlgorithm,
 		KeyID:           r.SigningKeyID,
 		PublicKeyDigest: keyDigest,
 		SignatureHex:    sigDisplay,
@@ -125,22 +148,74 @@ func Signature(r *dsr.Receipt, provided *PublicKeyWithID) *SignatureResult {
 		return res
 	}
 
-	if !ed25519.Verify(pubKey, payload, r.Signature) {
+	var verified bool
+	switch r.SigningAlgorithm {
+	case dsr.SigningAlgorithmED25519:
+		pub, ok := provided.Key.(ed25519.PublicKey)
+		if !ok {
+			res.Valid = false
+			res.Err = dsrerrors.New(
+				dsrerrors.SignatureInvalid,
+				"The receipt declares algorithm \"ed25519\" but the provided public key is not an ed25519 key.",
+				fmt.Sprintf("key type: %T, expected: ed25519.PublicKey", provided.Key),
+			)
+			return res
+		}
+		// ed25519 verifies over the raw message (not pre-hashed).
+		verified = ed25519.Verify(pub, payload, r.Signature)
+
+	case dsr.SigningAlgorithmRSAPSS:
+		pub, ok := provided.Key.(*rsa.PublicKey)
+		if !ok {
+			res.Valid = false
+			res.Err = dsrerrors.New(
+				dsrerrors.SignatureInvalid,
+				"The receipt declares algorithm \"rsa-pss-sha256\" but the provided public key is not an RSA key.",
+				fmt.Sprintf("key type: %T, expected: *rsa.PublicKey", provided.Key),
+			)
+			return res
+		}
+		verified = verifyRSAPSS(pub, payload, r.Signature)
+
+	case dsr.SigningAlgorithmECDSA:
+		pub, ok := provided.Key.(*ecdsa.PublicKey)
+		if !ok {
+			res.Valid = false
+			res.Err = dsrerrors.New(
+				dsrerrors.SignatureInvalid,
+				"The receipt declares algorithm \"ecdsa-sha256\" but the provided public key is not an ECDSA key.",
+				fmt.Sprintf("key type: %T, expected: *ecdsa.PublicKey", provided.Key),
+			)
+			return res
+		}
+		verified = verifyECDSA(pub, payload, r.Signature)
+
+	default:
+		res.Valid = false
+		res.Err = dsrerrors.New(
+			dsrerrors.SignatureInvalid,
+			fmt.Sprintf("The receipt declares unsupported signing algorithm %q.", r.SigningAlgorithm),
+			fmt.Sprintf("signing_algorithm: %q", r.SigningAlgorithm),
+		)
+		return res
+	}
+
+	if !verified {
 		res.Valid = false
 		res.Err = dsrerrors.New(
 			dsrerrors.SignatureInvalid,
 			fmt.Sprintf(
-				"The ed25519 signature on this receipt does not verify against key %q. "+
+				"The %s signature on this receipt does not verify against key %q. "+
 					"This means either: (1) the receipt was not signed by this key, "+
 					"(2) the receipt's envelope fields (id, version, type, vault_id, "+
 					"issued_at, content_hash) were modified after signing, or "+
 					"(3) the signature bytes are corrupt. "+
 					"Do not treat this receipt as evidence without resolving this failure.",
-				r.SigningKeyID,
+				r.SigningAlgorithm, r.SigningKeyID,
 			),
 			fmt.Sprintf(
-				"ed25519.Verify returned false; algorithm=%s, key_id=%s, payload_len=%d",
-				dsr.SigningAlgorithmED25519, r.SigningKeyID, len(payload),
+				"verify returned false; algorithm=%s, key_id=%s, payload_len=%d",
+				r.SigningAlgorithm, r.SigningKeyID, len(payload),
 			),
 		)
 		return res
@@ -148,6 +223,29 @@ func Signature(r *dsr.Receipt, provided *PublicKeyWithID) *SignatureResult {
 
 	res.Valid = true
 	return res
+}
+
+// verifyRSAPSS verifies an RSA-PSS SHA-256 signature over canonicalBytes.
+// AWS KMS RSASSA_PSS_SHA_256 uses PSSSaltLengthAuto-compatible salt lengths.
+func verifyRSAPSS(pub *rsa.PublicKey, canonicalBytes, sig []byte) bool {
+	hashed := sha256.Sum256(canonicalBytes)
+	opts := &rsa.PSSOptions{SaltLength: rsa.PSSSaltLengthAuto, Hash: crypto.SHA256}
+	return rsa.VerifyPSS(pub, crypto.SHA256, hashed[:], sig, opts) == nil
+}
+
+// verifyECDSA verifies an ECDSA SHA-256 signature over canonicalBytes.
+// AWS KMS ECDSA_SHA_256 produces ASN.1/DER-encoded signatures; VerifyASN1
+// handles that encoding directly.
+func verifyECDSA(pub *ecdsa.PublicKey, canonicalBytes, sig []byte) bool {
+	hashed := sha256.Sum256(canonicalBytes)
+	return ecdsa.VerifyASN1(pub, hashed[:], sig)
+}
+
+// x509MarshalPKIX is a local alias to avoid a direct x509 import at the top of
+// this file conflicting with the x509 import in key.go (same package is fine,
+// but named to make intent clear).
+func x509MarshalPKIX(pub interface{}) ([]byte, error) {
+	return marshalPKIX(pub)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

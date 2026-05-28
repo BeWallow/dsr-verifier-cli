@@ -39,8 +39,13 @@ const (
 	MalformedCausalRef ErrorClass = "malformed_causal_ref"
 
 	// KeyParseError means the public key file could not be parsed as a valid
-	// ed25519 public key in PEM or DER format.
+	// public key in PEM or DER format.
 	KeyParseError ErrorClass = "key_parse_error"
+
+	// UnsupportedAlgorithm means the receipt declares a signing algorithm that
+	// this verifier does not implement. Supported algorithms are ed25519,
+	// rsa-pss-sha256, and ecdsa-sha256.
+	UnsupportedAlgorithm ErrorClass = "unsupported_algorithm"
 )
 
 // VerificationError is a typed, auditor-friendly verification failure.

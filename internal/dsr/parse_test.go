@@ -145,13 +145,41 @@ func TestParseUnknownType(t *testing.T) {
 }
 
 func TestParseWrongAlgorithm(t *testing.T) {
-	input := strings.Replace(validReceiptJSON, `"ed25519"`, `"rsa-pss"`, 1)
+	// "rsa-pkcs1" is not a supported algorithm — must return UnsupportedAlgorithm,
+	// not MalformedReceipt.
+	input := strings.Replace(validReceiptJSON, `"ed25519"`, `"rsa-pkcs1"`, 1)
 	_, err := dsr.Parse([]byte(input))
 	if err == nil {
 		t.Fatal("expected error for unsupported algorithm")
 	}
-	if err.Class != dsrerrors.MalformedReceipt {
-		t.Errorf("error class = %q, want %q", err.Class, dsrerrors.MalformedReceipt)
+	if err.Class != dsrerrors.UnsupportedAlgorithm {
+		t.Errorf("error class = %q, want %q", err.Class, dsrerrors.UnsupportedAlgorithm)
+	}
+}
+
+func TestParseAcceptedAlgorithms(t *testing.T) {
+	// All three supported BYOK algorithms must parse successfully.
+	// Note: the validReceiptJSON signature is placeholder bytes — parse tests
+	// do not verify cryptographic correctness, just structural acceptance.
+	tests := []struct {
+		name string
+		algo string
+	}{
+		{"ed25519", "ed25519"},
+		{"rsa-pss-sha256", "rsa-pss-sha256"},
+		{"ecdsa-sha256", "ecdsa-sha256"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Use a longer placeholder signature to satisfy any non-zero length check;
+			// rsa-pss and ecdsa sigs are variable length so we just need non-empty.
+			input := strings.Replace(validReceiptJSON, `"ed25519"`, `"`+tc.algo+`"`, 1)
+			_, parseErr := dsr.Parse([]byte(input))
+			if parseErr != nil {
+				t.Errorf("Parse(%s): unexpected error: class=%s msg=%s",
+					tc.algo, parseErr.Class, parseErr.HumanMessage)
+			}
+		})
 	}
 }
 

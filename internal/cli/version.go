@@ -3,7 +3,7 @@ package cli
 // Version is the semver release. The CLI verifier promises backward
 // compatibility within a major version: any receipt produced by a Déjà
 // release that was current when this version shipped will verify forever.
-const Version = "1.0.0"
+const Version = "1.1.0"
 
 // BuildCommit is injected at link time:
 //
