@@ -29,6 +29,22 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      - name: Vector parity (vendored vs authoritative SHA-256)
+        # Asserts the vendored copy of rv-canonical-vector.json has not drifted
+        # from the auditor-pinned SHA-256.  When both repos are available (e.g.
+        # local dev), run 'make verify-vector-parity WALLOW_REPO=<path>' for a
+        # byte-level diff against the wallow repo's docs/dsr/ copy.
+        run: |
+          EXPECTED="39d74fec985b809b837718f1ba1295943dc78f3da766fc4d233d1716d6d31aa3"
+          ACTUAL=$(sha256sum testdata/protocol/rv-canonical-vector.json | awk '{print $1}')
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "RV vector file SHA-256 mismatch — vendored copy has drifted"
+            echo "  expected: $EXPECTED"
+            echo "  actual:   $ACTUAL"
+            exit 1
+          fi
+          echo "vector-parity OK"
+
       - name: Test
         run: go test -race -count=1 -timeout=120s ./...
 

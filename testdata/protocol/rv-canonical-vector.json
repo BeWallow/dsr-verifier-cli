@@ -1,0 +1,40 @@
+{
+  "_comment": "AUTHORITATIVE protocol test vector for the RV canonical form. Both the TypeScript server (rv-receipt-canonical.ts) and the Go CLI (CanonicalContent in internal/dsr/canonical.go) must produce byte-identical output for this input. The CLI repo vendors a byte-identical copy at testdata/protocol/rv-canonical-vector.json. CI must verify the two copies are byte-identical — run 'make verify-vector-parity' in the CLI repo or check the ci.yml 'Vector parity' step.",
+  "_spec": "canonicaliseRvReceipt / CanonicalContent — v1-legacy algorithm: sort all keys by Unicode code-point order, JSON.stringify compact.",
+  "input": {
+    "receiptId": "rv_01HWTEST0001",
+    "rvType": "rv-f",
+    "vaultId": "vault_01HWVLT0001",
+    "verificationRunId": "run_01HWRUN0001",
+    "verificationMode": "full",
+    "receiptsAttestedCount": 1250,
+    "checksPassed": [
+      "chain_integrity",
+      "signature_validity",
+      "content_hash",
+      "key_authority",
+      "cross_vault_isolation"
+    ],
+    "verificationStartedAt": "2026-05-26T00:00:00.000Z",
+    "verificationCompletedAt": "2026-05-26T00:04:23.000Z",
+    "issuedAt": "2026-05-26T00:04:24.000Z"
+  },
+  "wire_names": {
+    "checks_passed": ["chain_integrity","signature_validity","content_hash","key_authority","cross_vault_isolation"],
+    "issued_at": "2026-05-26T00:04:24.000Z",
+    "receipt_id": "rv_01HWTEST0001",
+    "receipts_attested_count": 1250,
+    "rv_type": "rv-f",
+    "vault_id": "vault_01HWVLT0001",
+    "verification_completed_at": "2026-05-26T00:04:23.000Z",
+    "verification_mode": "full",
+    "verification_run_id": "run_01HWRUN0001",
+    "verification_started_at": "2026-05-26T00:00:00.000Z"
+  },
+  "canonical_json": "{\"checks_passed\":[\"chain_integrity\",\"signature_validity\",\"content_hash\",\"key_authority\",\"cross_vault_isolation\"],\"issued_at\":\"2026-05-26T00:04:24.000Z\",\"receipt_id\":\"rv_01HWTEST0001\",\"receipts_attested_count\":1250,\"rv_type\":\"rv-f\",\"vault_id\":\"vault_01HWVLT0001\",\"verification_completed_at\":\"2026-05-26T00:04:23.000Z\",\"verification_mode\":\"full\",\"verification_run_id\":\"run_01HWRUN0001\",\"verification_started_at\":\"2026-05-26T00:00:00.000Z\"}",
+  "_note_on_canonical_hex": "canonical_sha256 is sha256(canonical_json encoded as UTF-8). Both the TypeScript and Go tests assert they produce canonical_json byte-exactly, not just the hash.",
+  "canonical_sha256": "f53a2c3ca7834438aaf59ae0400bd145f546287d71e0da4a7867a1b36fd250ae",
+  "test_signature_algorithm": "ed25519",
+  "test_public_key_base64": "MCowBQYDK2VwAyEAxYp569CsUpd+BJ1Ua5X2ldQMr5UDLkJYuvv9Gz4Nl8I=",
+  "test_signature_base64": "Rgm5w7Nf22PSLbku1LFEnD0QnyWXchQ01TJPbJuCYOdjvNwWk36dp1J+JxMBKKunexyqyih+99DiJ1xOnEdYAg=="
+}
